@@ -1,10 +1,9 @@
 {
   "version": 2,
-  "dgSpecHash": "KKcrSS8eNqM=",
+  "dgSpecHash": "+Ee8Mi8iehY=",
   "success": true,
   "projectFilePath": "C:\\Users\\gabar\\OneDrive\\Área de Trabalho\\Programação\\PulseCRM\\PulseCRM\\backend\\PulseCRM.Api\\PulseCRM.Api.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\gabar\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.4\\microsoft.aspnetcore.openapi.9.0.4.nupkg.sha512",
     "C:\\Users\\gabar\\.nuget\\packages\\microsoft.extensions.apidescription.server\\9.0.0\\microsoft.extensions.apidescription.server.9.0.0.nupkg.sha512",
     "C:\\Users\\gabar\\.nuget\\packages\\microsoft.openapi\\2.4.1\\microsoft.openapi.2.4.1.nupkg.sha512",
     "C:\\Users\\gabar\\.nuget\\packages\\swashbuckle.aspnetcore\\10.1.4\\swashbuckle.aspnetcore.10.1.4.nupkg.sha512",
