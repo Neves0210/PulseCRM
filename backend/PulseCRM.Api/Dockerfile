@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 COPY . .
-RUN dotnet restore PulseCRM.Api/PulseCRM.Api.csproj
+RUN dotnet restore backend/PulseCRM.Api/PulseCRM.Api.csproj
 RUN dotnet publish PulseCRM.Api/PulseCRM.Api.csproj -c Release -o /app/publish
 
 # Run
