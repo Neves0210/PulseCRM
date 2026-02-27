@@ -32,8 +32,8 @@ function NavItem({ to, label }) {
 export default function AppShell({ title, subtitle, right, children }) {
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-[1400px] p-4 md:p-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr]">
+        <div className="w-full p-4 md:p-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
           {/* Sidebar */}
           <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
