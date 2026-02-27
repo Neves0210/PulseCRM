@@ -120,9 +120,13 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            policy.WithOrigins(origins)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
+            policy
+                .SetIsOriginAllowed(origin =>
+                    origins.Contains(origin, StringComparer.OrdinalIgnoreCase) ||
+                    origin.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase)
+                )
+                .AllowAnyHeader()
+                .AllowAnyMethod();
         }
     });
 });
