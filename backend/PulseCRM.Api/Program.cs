@@ -120,9 +120,11 @@ app.MapGet("/", () => Results.Ok(new { name = "PulseCRM.Api", status = "ok" }));
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/ready", () => Results.Ok(new { status = "ready" }));
 
-// Auth (quando você ativar JWT)
-// app.UseAuthentication();
-// app.UseAuthorization();
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
 
 app.MapControllers();
 
