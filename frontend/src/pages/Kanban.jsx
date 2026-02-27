@@ -56,6 +56,21 @@ export default function Kanban() {
     return m;
   }, [stages, deals]);
 
+  const totals = useMemo(() => {
+    const open = deals.filter((d) => d.status === "Open");
+    const won = deals.filter((d) => d.status === "Won");
+    const lost = deals.filter((d) => d.status === "Lost");
+
+    return {
+      openCount: open.length,
+      wonCount: won.length,
+      lostCount: lost.length,
+      openSum: sumAmount(open),
+      wonSum: sumAmount(won),
+      lostSum: sumAmount(lost),
+    };
+  }, [deals]);
+
   function logout() {
     clearToken();
     localStorage.removeItem("pulsecrm_tenant");
@@ -176,12 +191,40 @@ export default function Kanban() {
         </form>
       </div>
 
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 12 }}>
+        <div style={miniCard}>
+          <div style={{ color: "#666", fontSize: 12 }}>Forecast (Open)</div>
+          <div style={{ fontSize: 22, fontWeight: "bold" }}>{brl(totals.openSum)}</div>
+          <small style={{ color: "#666" }}>{totals.openCount} deals</small>
+        </div>
+
+        <div style={miniCard}>
+          <div style={{ color: "#666", fontSize: 12 }}>Ganho (Won)</div>
+          <div style={{ fontSize: 22, fontWeight: "bold" }}>{brl(totals.wonSum)}</div>
+          <small style={{ color: "#666" }}>{totals.wonCount} deals</small>
+        </div>
+
+        <div style={miniCard}>
+          <div style={{ color: "#666", fontSize: 12 }}>Perdido (Lost)</div>
+          <div style={{ fontSize: 22, fontWeight: "bold" }}>{brl(totals.lostSum)}</div>
+          <small style={{ color: "#666" }}>{totals.lostCount} deals</small>
+        </div>
+      </div>
+
       <div style={{ marginTop: 12 }}>
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div style={board}>
-            {stages.map((s) => (
-              <StageColumn key={s.id} stage={s} deals={dealsByStage.get(s.id) || []} />
-            ))}
+            {stages.map((s) => {
+              const list = dealsByStage.get(s.id) || [];
+              return (
+                <StageColumn
+                  key={s.id}
+                  stage={s}
+                  deals={list}
+                  sum={sumAmount(list)}
+                />
+              );
+            })}
           </div>
         </DndContext>
       </div>
@@ -213,7 +256,7 @@ function TopBar({ tenantId, onLogout }) {
   );
 }
 
-function StageColumn({ stage, deals }) {
+function StageColumn({ stage, deals, sum }) {
   const { isOver, setNodeRef } = useDroppable({ id: stage.id });
 
   return (
@@ -224,9 +267,13 @@ function StageColumn({ stage, deals }) {
         outline: isOver ? "2px solid #333" : "1px solid #ddd",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h3 style={{ margin: 0 }}>{stage.name}</h3>
-        <small style={{ color: "#666" }}>{deals.length}</small>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+        <div>
+          <h3 style={{ margin: 0 }}>{stage.name}</h3>
+          <small style={{ color: "#666" }}>
+            {deals.length} deals • {brl(sum)}
+          </small>
+        </div>
       </div>
 
       <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
@@ -264,6 +311,14 @@ function DealCard({ deal }) {
   );
 }
 
+function sumAmount(list) {
+  return list.reduce((acc, d) => acc + (d.amount == null ? 0 : Number(d.amount)), 0);
+}
+
+function brl(n) {
+  return `R$ ${Number(n || 0).toLocaleString("pt-BR")}`;
+}
+
 const board = {
   display: "grid",
   gridTemplateColumns: "repeat(6, minmax(260px, 1fr))",
@@ -285,4 +340,11 @@ const card = {
   borderRadius: 12,
   padding: 12,
   boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+};
+
+const miniCard = {
+  border: "1px solid #ddd",
+  borderRadius: 12,
+  padding: 12,
+  background: "white",
 };
