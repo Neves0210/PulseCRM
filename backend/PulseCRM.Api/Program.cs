@@ -21,7 +21,13 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    var cs = builder.Configuration.GetConnectionString("Default");
+    var cs =
+        builder.Configuration.GetConnectionString("Default")
+        ?? builder.Configuration["DATABASE_URL"];
+
+    if (string.IsNullOrWhiteSpace(cs))
+        throw new InvalidOperationException("Database connection string not configured.");
+
     options.UseNpgsql(cs);
 });
 
