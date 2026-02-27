@@ -35,15 +35,15 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             </Protected>
           }
         />
+        <Route
+          path="/kanban"
+          element={
+            <Protected>
+              <Kanban />
+            </Protected>
+          }
+        />
       </Routes>
-      <Route
-        path="/kanban"
-        element={
-          <Protected>
-            <Kanban />
-          </Protected>
-        }
-      />
     </BrowserRouter>
   </React.StrictMode>
 );
