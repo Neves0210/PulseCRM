@@ -162,26 +162,44 @@ public class LeadsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = lead.Id }, new { lead.Id });
     }
 
-    [HttpPut("{id:guid}")]
+    [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateLeadRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.Name))
-            return BadRequest(new { error = "Name is required" });
-
         var lead = await _db.Leads.FirstOrDefaultAsync(x =>
             x.TenantId == _tenant.TenantId && x.Id == id);
 
         if (lead is null) return NotFound();
 
-        lead.Name = req.Name.Trim();
-        lead.Email = req.Email?.Trim();
-        lead.Phone = req.Phone?.Trim();
-        lead.Status = string.IsNullOrWhiteSpace(req.Status) ? lead.Status : req.Status.Trim();
-        lead.Source = req.Source?.Trim();
-        lead.OwnerUserId = req.OwnerUserId;
-        lead.UpdatedAtUtc = DateTime.UtcNow;
+        if (req.Name is not null)
+        {
+            if (string.IsNullOrWhiteSpace(req.Name))
+                return BadRequest(new { error = "Name cannot be empty" });
 
+            lead.Name = req.Name.Trim();
+        }
+
+        if (req.Email is not null)
+            lead.Email = string.IsNullOrWhiteSpace(req.Email) ? null : req.Email.Trim();
+
+        if (req.Phone is not null)
+            lead.Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim();
+
+        if (req.Source is not null)
+            lead.Source = string.IsNullOrWhiteSpace(req.Source) ? null : req.Source.Trim();
+
+        if (req.Status is not null)
+        {
+            var st = req.Status.Trim();
+            var allowed = new[] { "New", "Contacted", "Qualified", "Lost" };
+            if (!allowed.Contains(st))
+                return BadRequest(new { error = "Invalid Status" });
+
+            lead.Status = st;
+        }
+
+        lead.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
         return NoContent();
     }
 
@@ -195,6 +213,7 @@ public class LeadsController : ControllerBase
 
         _db.Leads.Remove(lead);
         await _db.SaveChangesAsync();
+
         return NoContent();
     }
 }
