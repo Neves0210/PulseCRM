@@ -18,8 +18,7 @@ public class TenantMiddleware
             path.StartsWith("/swagger") ||
             path.StartsWith("/health") ||
             path.StartsWith("/ready") ||
-            path.StartsWith("/setup") ||
-            path.StartsWith("/debug")) // <--- opcional, só pra ajudar debug
+            path.StartsWith("/setup"))
         {
             await _next(context);
             return;

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using PulseCRM.Api.Auth;
+using System.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,11 +22,11 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    var cs =
+    var raw =
         builder.Configuration.GetConnectionString("Default")
         ?? builder.Configuration["DATABASE_URL"];
 
-    cs = Sanitize(cs);
+    var cs = NormalizeConnectionString(raw);
 
     if (string.IsNullOrWhiteSpace(cs))
         throw new InvalidOperationException("Database connection string not configured.");
@@ -33,17 +34,50 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(cs);
 });
 
-static string Sanitize(string? s)
+static string NormalizeConnectionString(string? raw)
 {
-    if (string.IsNullOrWhiteSpace(s)) return "";
+    if (string.IsNullOrWhiteSpace(raw)) return "";
 
-    // remove BOM e caracteres invisíveis comuns
-    s = s.Trim().Trim('\uFEFF', '\u200B', '\u0000');
+    raw = raw.Trim().Trim('\uFEFF', '\u200B', '\u0000').Replace("\r", "").Replace("\n", "");
 
-    // remove quebras de linha acidentais
-    s = s.Replace("\r", "").Replace("\n", "");
+    // Se já estiver no formato key=value;key=value; retorna direto
+    if (raw.Contains("Host=", StringComparison.OrdinalIgnoreCase) ||
+        raw.Contains("Server=", StringComparison.OrdinalIgnoreCase))
+        return raw;
 
-    return s;
+    // Se vier no formato URL postgres/postgresql, converte
+    if (raw.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+        raw.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        var uri = new Uri(raw);
+
+        var userInfo = uri.UserInfo.Split(':', 2);
+        var username = Uri.UnescapeDataString(userInfo[0]);
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+
+        var database = uri.AbsolutePath.TrimStart('/');
+        database = Uri.UnescapeDataString(database);
+
+        var port = uri.IsDefaultPort ? 5432 : uri.Port;
+
+        // Query params (ex: ?sslmode=require)
+        var q = HttpUtility.ParseQueryString(uri.Query);
+        var sslmode = q["sslmode"]; // require / disable / prefer etc.
+
+        var cs = $"Host={uri.Host};Port={port};Database={database};Username={username};Password={password};";
+
+        if (!string.IsNullOrWhiteSpace(sslmode))
+            cs += $"Ssl Mode={sslmode};";
+
+        // Render às vezes usa SSL. Esse trust ajuda a não travar com cert.
+        if (string.Equals(sslmode, "require", StringComparison.OrdinalIgnoreCase))
+            cs += "Trust Server Certificate=true;";
+
+        return cs;
+    }
+
+    // Se chegou aqui, é algum formato inesperado
+    return raw;
 }
 
 builder.Services.AddScoped<JwtTokenService>();
