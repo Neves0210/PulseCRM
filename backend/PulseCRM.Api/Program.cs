@@ -1,12 +1,19 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using PulseCRM.Api.Data;
+using PulseCRM.Api.Tenants;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using PulseCRM.Api.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Controllers + API behavior
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
+
+builder.Services.AddScoped<TenantContext>();
 
 // Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -17,6 +24,28 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     var cs = builder.Configuration.GetConnectionString("Default");
     options.UseNpgsql(cs);
 });
+
+builder.Services.AddScoped<JwtTokenService>();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        var key = builder.Configuration["Jwt:Key"]!;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(key))
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 // CORS (Render API + Front Vercel)
 // Defina no Render: CORS_ORIGINS=https://seuapp.vercel.app,http://localhost:5173
@@ -71,6 +100,8 @@ if (app.Environment.IsDevelopment())
 // CORS antes de auth/controllers
 app.UseCors("cors");
 
+app.UseMiddleware<TenantMiddleware>();
+
 // Swagger: só em DEV (ou force via env var ENABLE_SWAGGER=true)
 var enableSwagger = app.Environment.IsDevelopment() ||
                     string.Equals(builder.Configuration["ENABLE_SWAGGER"], "true", StringComparison.OrdinalIgnoreCase);
@@ -80,6 +111,9 @@ if (enableSwagger)
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Health endpoints (para Vercel “Health”)
 app.MapGet("/", () => Results.Ok(new { name = "PulseCRM.Api", status = "ok" }));
