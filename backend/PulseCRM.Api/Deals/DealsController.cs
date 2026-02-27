@@ -90,10 +90,12 @@ public class DealsController : ControllerBase
 
         if (deal is null) return NotFound();
 
-        var stageExists = await _db.PipelineStages.AnyAsync(s =>
-            s.TenantId == _tenant.TenantId && s.Id == req.ToStageId);
+        // Busca o stage de destino (em vez de só AnyAsync)
+        var toStage = await _db.PipelineStages
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.TenantId == _tenant.TenantId && s.Id == req.ToStageId);
 
-        if (!stageExists) return BadRequest(new { error = "Invalid ToStageId" });
+        if (toStage is null) return BadRequest(new { error = "Invalid ToStageId" });
 
         var from = deal.StageId;
         if (from == req.ToStageId) return NoContent();
@@ -101,9 +103,11 @@ public class DealsController : ControllerBase
         deal.StageId = req.ToStageId;
         deal.UpdatedAtUtc = DateTime.UtcNow;
 
-        // se mover para Won/Lost, muda status
-        // (opcional: comparar pelo nome, mas aqui fica simples no front)
-        // deal.Status = deal.Status;
+        // ✅ Ajusta status conforme coluna
+        var stageName = (toStage.Name ?? "").Trim().ToLowerInvariant();
+        if (stageName == "won") deal.Status = "Won";
+        else if (stageName == "lost") deal.Status = "Lost";
+        else deal.Status = "Open";
 
         var userIdStr = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         _ = Guid.TryParse(userIdStr, out var userId);
