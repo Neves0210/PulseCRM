@@ -27,6 +27,9 @@ export default function Leads() {
     source: "",
   });
 
+  const [editingId, setEditingId] = useState(null);
+  const [editLead, setEditLead] = useState({ name: "", email: "", phone: "", status: "New", source: "" });
+
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || pageSize)));
   }, [data.total, data.pageSize, pageSize]);
@@ -62,6 +65,59 @@ export default function Leads() {
     localStorage.removeItem("pulsecrm_tenant");
     nav("/login");
   }
+
+  function startEdit(lead) {
+    setEditingId(lead.id);
+    setEditLead({
+        name: lead.name || "",
+        email: lead.email || "",
+        phone: lead.phone || "",
+        status: lead.status || "New",
+        source: lead.source || "",
+    });
+ }
+
+ async function saveEdit() {
+   setErr("");
+   if (!editingId) return;
+
+   if (!editLead.name.trim()) {
+       setErr("Nome é obrigatório.");
+       return;
+   }
+
+   try {
+       await apiFetch(`/leads/${editingId}`, {
+       tenantId,
+       method: "PUT",
+       body: JSON.stringify({
+           name: editLead.name.trim(),
+           email: editLead.email.trim() || null,
+           phone: editLead.phone.trim() || null,
+           status: editLead.status || "New",
+           source: editLead.source.trim() || null,
+           ownerUserId: null,
+       }),
+      });
+
+       setEditingId(null);
+       await load();
+   } catch (e) {
+       setErr(String(e.message || e));
+   }
+  }
+
+    async function removeLead(id) {
+    const ok = confirm("Tem certeza que deseja excluir este lead?");
+    if (!ok) return;
+
+   try {
+       await apiFetch(`/leads/${id}`, { tenantId, method: "DELETE" });
+       await load();
+   } catch (e) {
+       setErr(String(e.message || e));
+   }
+ }
 
   async function onApplyFilters(e) {
     e.preventDefault();
@@ -209,7 +265,7 @@ export default function Leads() {
         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
           <thead>
             <tr>
-              {["Nome", "Email", "Telefone", "Status", "Source", "Criado em"].map((h) => (
+              {["Nome", "Email", "Telefone", "Status", "Source", "Criado em", "Ações"].map((h) => (
                 <th key={h} style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: "10px 8px" }}>
                   {h}
                 </th>
@@ -218,9 +274,9 @@ export default function Leads() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} style={{ padding: 12 }}>Carregando...</td></tr>
+              <tr><td colSpan={7} style={{ padding: 12 }}>Carregando...</td></tr>
             ) : data.items.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: 12 }}>Nenhum lead encontrado.</td></tr>
+              <tr><td colSpan={7} style={{ padding: 12 }}>Nenhum lead encontrado.</td></tr>
             ) : (
               data.items.map((x) => (
                 <tr key={x.id}>
@@ -232,11 +288,39 @@ export default function Leads() {
                   <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>
                     {new Date(x.createdAtUtc).toLocaleString()}
                   </td>
+                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => startEdit(x)} style={{ padding: "6px 8px" }}>Editar</button>
+                        <button onClick={() => removeLead(x.id)} style={{ padding: "6px 8px" }}>Excluir</button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+        
+        {editingId ? (
+            <div style={{ marginTop: 16, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+                <h3 style={{ marginTop: 0 }}>Editar Lead</h3>
+
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1.5fr 1fr 1.5fr auto auto", gap: 10 }}>
+                <input value={editLead.name} onChange={(e) => setEditLead(p => ({ ...p, name: e.target.value }))} placeholder="Nome" style={{ padding: 10 }} />
+                <input value={editLead.email} onChange={(e) => setEditLead(p => ({ ...p, email: e.target.value }))} placeholder="Email" style={{ padding: 10 }} />
+                <input value={editLead.phone} onChange={(e) => setEditLead(p => ({ ...p, phone: e.target.value }))} placeholder="Telefone" style={{ padding: 10 }} />
+                <select value={editLead.status} onChange={(e) => setEditLead(p => ({ ...p, status: e.target.value }))} style={{ padding: 10 }}>
+                    <option value="New">New</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Qualified">Qualified</option>
+                    <option value="Lost">Lost</option>
+                </select>
+                <input value={editLead.source} onChange={(e) => setEditLead(p => ({ ...p, source: e.target.value }))} placeholder="Source" style={{ padding: 10 }} />
+
+                <button onClick={saveEdit} style={{ padding: 10 }}>Salvar</button>
+                <button onClick={() => setEditingId(null)} style={{ padding: 10 }}>Cancelar</button>
+                </div>
+            </div>
+        ) : null}
 
         {/* Paginação */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
