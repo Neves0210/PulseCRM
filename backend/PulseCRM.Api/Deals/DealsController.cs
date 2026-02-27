@@ -125,4 +125,48 @@ public class DealsController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
+    public record UpdateDealRequest(string? Title, string? Company, decimal? Amount);
+
+    [HttpPatch("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDealRequest req)
+    {
+        var deal = await _db.Deals.FirstOrDefaultAsync(x =>
+            x.TenantId == _tenant.TenantId && x.Id == id);
+
+        if (deal is null) return NotFound();
+
+        if (req.Title is not null)
+        {
+            if (string.IsNullOrWhiteSpace(req.Title))
+                return BadRequest(new { error = "Title cannot be empty" });
+
+            deal.Title = req.Title.Trim();
+        }
+
+        if (req.Company is not null)
+            deal.Company = string.IsNullOrWhiteSpace(req.Company) ? null : req.Company.Trim();
+
+        if (req.Amount.HasValue)
+            deal.Amount = req.Amount.Value;
+        // se quiser permitir zerar amount mandando null, a gente ajusta depois
+
+        deal.UpdatedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var deal = await _db.Deals.FirstOrDefaultAsync(x =>
+            x.TenantId == _tenant.TenantId && x.Id == id);
+
+        if (deal is null) return NotFound();
+
+        _db.Deals.Remove(deal);
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
 }
