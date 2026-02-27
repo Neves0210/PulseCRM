@@ -25,8 +25,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         builder.Configuration.GetConnectionString("Default")
         ?? builder.Configuration["DATABASE_URL"];
 
+    // TEMP: não derrubar o app, pra conseguirmos debugar no Render.
+    // Se cs estiver vazio, ainda vai falhar quando tentar acessar DB, mas o app sobe.
     if (string.IsNullOrWhiteSpace(cs))
-        throw new InvalidOperationException("Database connection string not configured.");
+        cs = "Host=invalid;Database=invalid;Username=invalid;Password=invalid";
 
     options.UseNpgsql(cs);
 });
@@ -126,11 +128,11 @@ app.MapGet("/", () => Results.Ok(new { name = "PulseCRM.Api", status = "ok" }));
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/ready", () => Results.Ok(new { status = "ready" }));
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-}
+// using (var scope = app.Services.CreateScope())
+// {
+//     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+//     db.Database.Migrate();
+// }
 
 app.MapControllers();
 

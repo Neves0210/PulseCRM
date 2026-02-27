@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PulseCRM.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+704ce94ff22adc19d0288b34a087f5e711a22b06")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+256d2806e0521e912b23ba4372d2c839580d288e")]
 [assembly: System.Reflection.AssemblyProductAttribute("PulseCRM.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PulseCRM.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
