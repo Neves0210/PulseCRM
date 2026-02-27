@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
+using PulseCRM.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +11,12 @@ builder.Services.AddProblemDetails();
 // Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    var cs = builder.Configuration.GetConnectionString("Default");
+    options.UseNpgsql(cs);
+});
 
 // CORS (Render API + Front Vercel)
 // Defina no Render: CORS_ORIGINS=https://seuapp.vercel.app,http://localhost:5173

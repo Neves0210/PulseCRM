@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: pulsecrm_postgres
+    environment:
+      POSTGRES_DB: pulsecrm
+      POSTGRES_USER: pulsecrm
+      POSTGRES_PASSWORD: pulsecrm123
+    ports:
+      - "5433:5432"
+    volumes:
+      - pulsecrm_pgdata:/var/lib/postgresql/data
+
+volumes:
+  pulsecrm_pgdata:

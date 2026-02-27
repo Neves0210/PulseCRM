@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "4QWyhVTJ+DnnSGWiUWBLuKo15riztJ6HjnDwN2z5ehU=",
+  "Source": "PulseCRM.Api",
+  "BasePath": "_content/PulseCRM.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}
