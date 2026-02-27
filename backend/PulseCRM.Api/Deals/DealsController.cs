@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PulseCRM.Api.Data;
 using PulseCRM.Api.Models;
 using PulseCRM.Api.Tenants;
+using System.Text.Json;
 
 namespace PulseCRM.Api.Deals;
 
@@ -126,7 +127,7 @@ public class DealsController : ControllerBase
         return NoContent();
     }
 
-    public record UpdateDealRequest(string? Title, string? Company, decimal? Amount);
+    public record UpdateDealRequest(string? Title, string? Company, JsonElement? Amount);
 
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDealRequest req)
@@ -136,6 +137,7 @@ public class DealsController : ControllerBase
 
         if (deal is null) return NotFound();
 
+        // Title
         if (req.Title is not null)
         {
             if (string.IsNullOrWhiteSpace(req.Title))
@@ -144,18 +146,34 @@ public class DealsController : ControllerBase
             deal.Title = req.Title.Trim();
         }
 
+        // Company
         if (req.Company is not null)
             deal.Company = string.IsNullOrWhiteSpace(req.Company) ? null : req.Company.Trim();
 
+        // Amount (pode ser número, null, ou ausente)
         if (req.Amount.HasValue)
-            deal.Amount = req.Amount.Value;
-        // se quiser permitir zerar amount mandando null, a gente ajusta depois
+        {
+            var el = req.Amount.Value;
+            if (el.ValueKind == JsonValueKind.Null)
+            {
+                deal.Amount = null;
+            }
+            else if (el.ValueKind == JsonValueKind.Number)
+            {
+                // decimal via double não é ideal, mas funciona bem aqui; se quiser, trocamos pra string depois
+                deal.Amount = el.GetDecimal();
+            }
+            else
+            {
+                return BadRequest(new { error = "Amount must be a number or null" });
+            }
+        }
 
         deal.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-
         return NoContent();
     }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -166,7 +184,6 @@ public class DealsController : ControllerBase
 
         _db.Deals.Remove(deal);
         await _db.SaveChangesAsync();
-
         return NoContent();
     }
 }
