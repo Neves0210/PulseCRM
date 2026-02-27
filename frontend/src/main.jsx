@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login";
 import Leads from "./pages/Leads";
 import Dashboard from "./pages/Dashboard";
+import Kanban from "./pages/Kanban";
 
 function Protected({ children }) {
   const token = localStorage.getItem("pulsecrm_token");
@@ -35,6 +36,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           }
         />
       </Routes>
+      <Route
+        path="/kanban"
+        element={
+          <Protected>
+            <Kanban />
+          </Protected>
+        }
+      />
     </BrowserRouter>
   </React.StrictMode>
 );
