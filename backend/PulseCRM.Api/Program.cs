@@ -25,11 +25,26 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         builder.Configuration.GetConnectionString("Default")
         ?? builder.Configuration["DATABASE_URL"];
 
+    cs = Sanitize(cs);
+
     if (string.IsNullOrWhiteSpace(cs))
         throw new InvalidOperationException("Database connection string not configured.");
 
     options.UseNpgsql(cs);
 });
+
+static string Sanitize(string? s)
+{
+    if (string.IsNullOrWhiteSpace(s)) return "";
+
+    // remove BOM e caracteres invisíveis comuns
+    s = s.Trim().Trim('\uFEFF', '\u200B', '\u0000');
+
+    // remove quebras de linha acidentais
+    s = s.Replace("\r", "").Replace("\n", "");
+
+    return s;
+}
 
 builder.Services.AddScoped<JwtTokenService>();
 

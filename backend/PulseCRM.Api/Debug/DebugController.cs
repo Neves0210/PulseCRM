@@ -31,6 +31,9 @@ public class DebugController : ControllerBase
             has_DATABASE_URL = !string.IsNullOrWhiteSpace(dbUrl),
             DATABASE_URL_startsWith = Start(dbUrlOrCs: dbUrl),
 
+            firstCharCode_ConnectionStrings__Default = FirstCharCode(csDefault),
+            firstCharCode_DATABASE_URL = FirstCharCode(dbUrl),
+
             // Ajuda a detectar “colei JSON/objeto” ou lixo
             looksLikeUrl = LooksLikePostgresUrl(csDefault) || LooksLikePostgresUrl(dbUrl),
             looksLikeKeyValue = LooksLikeKeyValue(csDefault) || LooksLikeKeyValue(dbUrl)
@@ -57,6 +60,12 @@ public class DebugController : ControllerBase
             // formato típico: Host=...;Database=...;Username=...;Password=...
             return s.Contains("Host=", StringComparison.OrdinalIgnoreCase)
                 && s.Contains("Database=", StringComparison.OrdinalIgnoreCase);
+        }
+
+        static int? FirstCharCode(string? s)
+        {
+            if (string.IsNullOrEmpty(s)) return null;
+            return (int)s[0];
         }
     }
 }
