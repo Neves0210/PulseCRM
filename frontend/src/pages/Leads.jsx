@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "../components/AppShell";
 import LogoutButton from "../components/LogoutButton";
 import Badge from "../components/Badge";
-import { apiFetch, clearToken } from "../lib/api";
-import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 
 function toneFromStatus(status) {
   if (status === "Qualified") return "success";
@@ -13,7 +12,6 @@ function toneFromStatus(status) {
 }
 
 export default function Leads() {
-  const nav = useNavigate();
   const tenantId = localStorage.getItem("pulsecrm_tenant") || "";
 
   const [loading, setLoading] = useState(false);
@@ -34,6 +32,8 @@ export default function Leads() {
     status: "New",
     source: "",
   });
+
+  const [selectedLead, setSelectedLead] = useState(null);
 
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || pageSize)));
@@ -102,10 +102,49 @@ export default function Leads() {
     }
   }
 
-  function logout() {
-    clearToken();
-    localStorage.removeItem("pulsecrm_tenant");
-    nav("/login");
+  async function saveLeadEdits({ id, name, email, phone, status, source }) {
+    setErr("");
+
+    // otimista
+    setData((prev) => ({
+      ...prev,
+      items: prev.items.map((x) =>
+        x.id === id ? { ...x, name, email, phone, status, source } : x
+      ),
+    }));
+
+    try {
+      await apiFetch(`/leads/${id}`, {
+        tenantId,
+        method: "PATCH",
+        body: JSON.stringify({ name, email, phone, status, source }),
+      });
+
+      await load();
+      setSelectedLead(null);
+    } catch (e) {
+      setErr(String(e.message || e));
+      await load();
+    }
+  }
+
+  async function deleteLead(id) {
+    const ok = window.confirm("Tem certeza que deseja excluir este lead?");
+    if (!ok) return;
+
+    setErr("");
+
+    // otimista
+    setData((prev) => ({ ...prev, items: prev.items.filter((x) => x.id !== id), total: prev.total - 1 }));
+
+    try {
+      await apiFetch(`/leads/${id}`, { tenantId, method: "DELETE" });
+      await load();
+      setSelectedLead(null);
+    } catch (e) {
+      setErr(String(e.message || e));
+      await load();
+    }
   }
 
   return (
@@ -228,7 +267,7 @@ export default function Leads() {
           <table className="min-w-[900px] w-full">
             <thead className="bg-slate-50">
               <tr>
-                {["Nome", "Email", "Telefone", "Status", "Source", "Criado em"].map((h) => (
+                {["Nome", "Email", "Telefone", "Status", "Source", "Criado em", ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
                     {h}
                   </th>
@@ -239,13 +278,13 @@ export default function Leads() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-sm text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-sm text-slate-500">
                     Carregando...
                   </td>
                 </tr>
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-sm text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-sm text-slate-500">
                     Nenhum lead encontrado.
                   </td>
                 </tr>
@@ -261,6 +300,14 @@ export default function Leads() {
                     <td className="px-4 py-3 text-sm text-slate-600">{x.source || "-"}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">
                       {new Date(x.createdAtUtc).toLocaleString("pt-BR")}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <button
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        onClick={() => setSelectedLead(x)}
+                      >
+                        Editar
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -293,6 +340,167 @@ export default function Leads() {
           </button>
         </div>
       </div>
+
+      {selectedLead ? (
+        <LeadModal
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onSave={saveLeadEdits}
+          onDelete={deleteLead}
+        />
+      ) : null}
     </AppShell>
+  );
+}
+
+function LeadModal({ lead, onClose, onSave, onDelete }) {
+  const [name, setName] = useState(lead.name || "");
+  const [email, setEmail] = useState(lead.email || "");
+  const [phone, setPhone] = useState(lead.phone || "");
+  const [status, setStatus] = useState(lead.status || "New");
+  const [source, setSource] = useState(lead.source || "");
+
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr("");
+
+    const cleanName = name.trim();
+    if (!cleanName) return setErr("Nome é obrigatório.");
+
+    setBusy(true);
+    try {
+      await onSave({
+        id: lead.id,
+        name: cleanName,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        status,
+        source: source.trim() || null,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    try {
+      await onDelete(lead.id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={onClose}>
+      <div className="w-full max-w-xl rounded-3xl bg-white shadow-xl" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
+          <div>
+            <div className="text-lg font-semibold text-slate-900">Editar Lead</div>
+            <div className="mt-1 text-sm text-slate-500">ID: {lead.id}</div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Fechar
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="grid gap-4 p-5">
+          {err ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+              {err}
+            </div>
+          ) : null}
+
+          <label className="grid gap-1">
+            <span className="text-sm font-medium text-slate-700">Nome</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+          </label>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="grid gap-1">
+              <span className="text-sm font-medium text-slate-700">Email</span>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+              />
+            </label>
+
+            <label className="grid gap-1">
+              <span className="text-sm font-medium text-slate-700">Telefone</span>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="grid gap-1">
+              <span className="text-sm font-medium text-slate-700">Status</span>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+              >
+                <option value="New">New</option>
+                <option value="Contacted">Contacted</option>
+                <option value="Qualified">Qualified</option>
+                <option value="Lost">Lost</option>
+              </select>
+            </label>
+
+            <label className="grid gap-1">
+              <span className="text-sm font-medium text-slate-700">Source</span>
+              <input
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2 md:flex-row md:items-center md:justify-between">
+            <button
+              type="button"
+              onClick={remove}
+              disabled={busy}
+              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+            >
+              Excluir
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busy}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+
+              <button
+                disabled={busy}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

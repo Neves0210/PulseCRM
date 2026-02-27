@@ -35,6 +35,9 @@ export default function Kanban() {
 
   const [newDeal, setNewDeal] = useState({ title: "", company: "", amount: "", stageId: "" });
 
+  // modal
+  const [selectedDeal, setSelectedDeal] = useState(null);
+
   async function loadAll() {
     setLoading(true);
     setErr("");
@@ -96,7 +99,7 @@ export default function Kanban() {
     if (!deal) return;
     if (deal.stageId === toStageId) return;
 
-    // atualização otimista
+    // otimista
     setDeals((prev) => prev.map((x) => (x.id === dealId ? { ...x, stageId: toStageId } : x)));
 
     try {
@@ -106,7 +109,7 @@ export default function Kanban() {
         body: JSON.stringify({ toStageId }),
       });
 
-      // recarrega para refletir status Open/Won/Lost (backend)
+      // recarrega para status Open/Won/Lost refletir
       await loadAll();
     } catch (e) {
       setErr(String(e.message || e));
@@ -118,22 +121,13 @@ export default function Kanban() {
     e.preventDefault();
     setErr("");
 
-    if (!newDeal.stageId) {
-      setErr("Escolha uma coluna (stage).");
-      return;
-    }
-    if (!newDeal.title.trim()) {
-      setErr("Título é obrigatório.");
-      return;
-    }
+    if (!newDeal.stageId) return setErr("Escolha uma coluna (stage).");
+    if (!newDeal.title.trim()) return setErr("Título é obrigatório.");
 
     const amountNum =
       newDeal.amount.trim() === "" ? null : Number(String(newDeal.amount).replace(",", "."));
 
-    if (amountNum !== null && Number.isNaN(amountNum)) {
-      setErr("Valor inválido.");
-      return;
-    }
+    if (amountNum !== null && Number.isNaN(amountNum)) return setErr("Valor inválido.");
 
     try {
       await apiFetch("/deals", {
@@ -154,6 +148,53 @@ export default function Kanban() {
     }
   }
 
+  async function saveDealEdits({ id, title, company, amount }) {
+    setErr("");
+
+    // atualiza otimista no state
+    setDeals((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, title, company: company || null, amount } : d
+      )
+    );
+
+    try {
+      await apiFetch(`/deals/${id}`, {
+        tenantId,
+        method: "PATCH",
+        body: JSON.stringify({
+          title,
+          company, // pode ser "" para limpar, backend converte para null
+          amount,  // pode ser null
+        }),
+      });
+      await loadAll();
+      setSelectedDeal(null);
+    } catch (e) {
+      setErr(String(e.message || e));
+      await loadAll();
+    }
+  }
+
+  async function deleteDeal(id) {
+    setErr("");
+
+    // otimista
+    setDeals((prev) => prev.filter((d) => d.id !== id));
+
+    try {
+      await apiFetch(`/deals/${id}`, {
+        tenantId,
+        method: "DELETE",
+      });
+      await loadAll();
+      setSelectedDeal(null);
+    } catch (e) {
+      setErr(String(e.message || e));
+      await loadAll();
+    }
+  }
+
   return (
     <AppShell title="Pipeline" subtitle={`Tenant: ${tenantId}`} right={<LogoutButton />}>
       {err ? (
@@ -165,6 +206,7 @@ export default function Kanban() {
       {/* Novo Deal */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="text-sm font-semibold text-slate-900">Novo Deal</div>
+
         <form
           onSubmit={createDeal}
           className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[2fr_1.5fr_1fr_1.2fr_auto]"
@@ -221,11 +263,29 @@ export default function Kanban() {
             {stages.map((s) => {
               const list = dealsByStage.get(s.id) || [];
               const sum = sumAmount(list);
-              return <StageColumn key={s.id} stage={s} deals={list} sum={sum} />;
+              return (
+                <StageColumn
+                  key={s.id}
+                  stage={s}
+                  deals={list}
+                  sum={sum}
+                  onOpenDeal={(deal) => setSelectedDeal(deal)}
+                />
+              );
             })}
           </div>
         </DndContext>
       </div>
+
+      {/* Modal */}
+      {selectedDeal ? (
+        <DealModal
+          deal={selectedDeal}
+          onClose={() => setSelectedDeal(null)}
+          onSave={saveDealEdits}
+          onDelete={deleteDeal}
+        />
+      ) : null}
     </AppShell>
   );
 }
@@ -240,7 +300,7 @@ function MetricCard({ title, value, sub }) {
   );
 }
 
-function StageColumn({ stage, deals, sum }) {
+function StageColumn({ stage, deals, sum, onOpenDeal }) {
   const { isOver, setNodeRef } = useDroppable({ id: stage.id });
 
   return (
@@ -263,7 +323,7 @@ function StageColumn({ stage, deals, sum }) {
 
       <div className="mt-3 grid gap-3">
         {deals.map((d) => (
-          <DealCard key={d.id} deal={d} />
+          <DealCard key={d.id} deal={d} onOpen={() => onOpenDeal(d)} />
         ))}
         {deals.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-white p-3 text-xs text-slate-500">
@@ -275,7 +335,7 @@ function StageColumn({ stage, deals, sum }) {
   );
 }
 
-function DealCard({ deal }) {
+function DealCard({ deal, onOpen }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
   });
@@ -295,6 +355,8 @@ function DealCard({ deal }) {
         isDragging ? "opacity-60" : "",
         "cursor-grab active:cursor-grabbing",
       ].join(" ")}
+      onDoubleClick={onOpen}
+      title="Dê duplo clique para editar"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="text-sm font-semibold text-slate-900">{deal.title}</div>
@@ -309,6 +371,168 @@ function DealCard({ deal }) {
 
       <div className="mt-2 text-xs text-slate-500">
         Atualizado: {new Date(deal.updatedAtUtc).toLocaleString("pt-BR")}
+      </div>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen();
+        }}
+        className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+      >
+        Editar
+      </button>
+    </div>
+  );
+}
+
+function DealModal({ deal, onClose, onSave, onDelete }) {
+  const [title, setTitle] = useState(deal.title || "");
+  const [company, setCompany] = useState(deal.company || "");
+  const [amountText, setAmountText] = useState(deal.amount == null ? "" : String(deal.amount));
+  const [noAmount, setNoAmount] = useState(deal.amount == null);
+
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr("");
+
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return setErr("Título é obrigatório.");
+
+    let amount = null;
+    if (!noAmount) {
+      const n = amountText.trim() === "" ? null : Number(amountText.replace(",", "."));
+      if (n === null || Number.isNaN(n)) return setErr("Valor inválido.");
+      amount = n;
+    }
+
+    setBusy(true);
+    try {
+      await onSave({
+        id: deal.id,
+        title: cleanTitle,
+        company: company.trim(),
+        amount: noAmount ? null : amount,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    const ok = window.confirm("Tem certeza que deseja excluir este deal?");
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      await onDelete(deal.id);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onMouseDown={onClose}
+    >
+      <div
+        className="w-full max-w-xl rounded-3xl bg-white shadow-xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
+          <div>
+            <div className="text-lg font-semibold text-slate-900">Editar Deal</div>
+            <div className="mt-1 text-sm text-slate-500">ID: {deal.id}</div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Fechar
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="grid gap-4 p-5">
+          {err ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+              {err}
+            </div>
+          ) : null}
+
+          <label className="grid gap-1">
+            <span className="text-sm font-medium text-slate-700">Título</span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+          </label>
+
+          <label className="grid gap-1">
+            <span className="text-sm font-medium text-slate-700">Empresa</span>
+            <input
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            />
+          </label>
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-700">Valor</span>
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={noAmount}
+                  onChange={(e) => setNoAmount(e.target.checked)}
+                />
+                Sem valor
+              </label>
+            </div>
+
+            <input
+              value={amountText}
+              onChange={(e) => setAmountText(e.target.value)}
+              disabled={noAmount}
+              placeholder="ex: 25000"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2 md:flex-row md:items-center md:justify-between">
+            <button
+              type="button"
+              onClick={remove}
+              disabled={busy}
+              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+            >
+              Excluir
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busy}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+
+              <button
+                disabled={busy}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
