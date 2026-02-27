@@ -2,11 +2,27 @@ import { useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { apiFetch, clearToken } from "../lib/api";
-import { Link, useNavigate } from "react-router-dom";
+
+import AppShell from "../components/AppShell";
+import LogoutButton from "../components/LogoutButton";
+import Badge from "../components/Badge";
+import { apiFetch } from "../lib/api";
+
+function sumAmount(list) {
+  return list.reduce((acc, d) => acc + (d.amount == null ? 0 : Number(d.amount)), 0);
+}
+
+function brl(n) {
+  return `R$ ${Number(n || 0).toLocaleString("pt-BR")}`;
+}
+
+function toneFromDealStatus(status) {
+  if (status === "Won") return "success";
+  if (status === "Lost") return "danger";
+  return "neutral";
+}
 
 export default function Kanban() {
-  const nav = useNavigate();
   const tenantId = localStorage.getItem("pulsecrm_tenant") || "";
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -17,7 +33,6 @@ export default function Kanban() {
   const [stages, setStages] = useState([]);
   const [deals, setDeals] = useState([]);
 
-  // criar deal
   const [newDeal, setNewDeal] = useState({ title: "", company: "", amount: "", stageId: "" });
 
   async function loadAll() {
@@ -30,7 +45,6 @@ export default function Kanban() {
       const d = await apiFetch("/deals", { tenantId });
       setDeals(d);
 
-      // default stage para criar deal
       if (!newDeal.stageId && s?.length) {
         setNewDeal((p) => ({ ...p, stageId: s[0].id }));
       }
@@ -71,12 +85,6 @@ export default function Kanban() {
     };
   }, [deals]);
 
-  function logout() {
-    clearToken();
-    localStorage.removeItem("pulsecrm_tenant");
-    nav("/login");
-  }
-
   async function onDragEnd(event) {
     const { active, over } = event;
     if (!over) return;
@@ -86,10 +94,9 @@ export default function Kanban() {
 
     const deal = deals.find((x) => x.id === dealId);
     if (!deal) return;
-
     if (deal.stageId === toStageId) return;
 
-    // otimismo leve: atualiza UI antes, e se falhar, recarrega
+    // atualização otimista
     setDeals((prev) => prev.map((x) => (x.id === dealId ? { ...x, stageId: toStageId } : x)));
 
     try {
@@ -98,6 +105,9 @@ export default function Kanban() {
         method: "PATCH",
         body: JSON.stringify({ toStageId }),
       });
+
+      // recarrega para refletir status Open/Won/Lost (backend)
+      await loadAll();
     } catch (e) {
       setErr(String(e.message || e));
       await loadAll();
@@ -121,7 +131,7 @@ export default function Kanban() {
       newDeal.amount.trim() === "" ? null : Number(String(newDeal.amount).replace(",", "."));
 
     if (amountNum !== null && Number.isNaN(amountNum)) {
-      setErr("Amount inválido.");
+      setErr("Valor inválido.");
       return;
     }
 
@@ -145,39 +155,42 @@ export default function Kanban() {
   }
 
   return (
-    <div style={{ fontFamily: "Arial", padding: 24 }}>
-      <TopBar tenantId={tenantId} onLogout={logout} />
+    <AppShell title="Pipeline" subtitle={`Tenant: ${tenantId}`} right={<LogoutButton />}>
+      {err ? (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          {err}
+        </div>
+      ) : null}
 
-      {err ? <pre style={{ color: "crimson", marginTop: 12 }}>{err}</pre> : null}
-
-      <div style={{ marginTop: 12, padding: 12, border: "1px solid #ddd", borderRadius: 10 }}>
-        <h3 style={{ marginTop: 0 }}>Novo Deal</h3>
+      {/* Novo Deal */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-sm font-semibold text-slate-900">Novo Deal</div>
         <form
           onSubmit={createDeal}
-          style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1.2fr auto", gap: 10 }}
+          className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[2fr_1.5fr_1fr_1.2fr_auto]"
         >
           <input
             value={newDeal.title}
             onChange={(e) => setNewDeal((p) => ({ ...p, title: e.target.value }))}
             placeholder="Título (ex: Plano anual - Empresa X)"
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
           <input
             value={newDeal.company}
             onChange={(e) => setNewDeal((p) => ({ ...p, company: e.target.value }))}
             placeholder="Empresa"
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
           <input
             value={newDeal.amount}
             onChange={(e) => setNewDeal((p) => ({ ...p, amount: e.target.value }))}
             placeholder="Valor (ex: 25000)"
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
           <select
             value={newDeal.stageId}
             onChange={(e) => setNewDeal((p) => ({ ...p, stageId: e.target.value }))}
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           >
             {stages.map((s) => (
               <option key={s.id} value={s.id}>
@@ -185,73 +198,44 @@ export default function Kanban() {
               </option>
             ))}
           </select>
-          <button style={{ padding: 10 }} disabled={loading}>
+          <button
+            disabled={loading}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+          >
             Criar
           </button>
         </form>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 12 }}>
-        <div style={miniCard}>
-          <div style={{ color: "#666", fontSize: 12 }}>Forecast (Open)</div>
-          <div style={{ fontSize: 22, fontWeight: "bold" }}>{brl(totals.openSum)}</div>
-          <small style={{ color: "#666" }}>{totals.openCount} deals</small>
-        </div>
-
-        <div style={miniCard}>
-          <div style={{ color: "#666", fontSize: 12 }}>Ganho (Won)</div>
-          <div style={{ fontSize: 22, fontWeight: "bold" }}>{brl(totals.wonSum)}</div>
-          <small style={{ color: "#666" }}>{totals.wonCount} deals</small>
-        </div>
-
-        <div style={miniCard}>
-          <div style={{ color: "#666", fontSize: 12 }}>Perdido (Lost)</div>
-          <div style={{ fontSize: 22, fontWeight: "bold" }}>{brl(totals.lostSum)}</div>
-          <small style={{ color: "#666" }}>{totals.lostCount} deals</small>
-        </div>
+      {/* Totais */}
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <MetricCard title="Forecast (Open)" value={brl(totals.openSum)} sub={`${totals.openCount} deals`} />
+        <MetricCard title="Ganho (Won)" value={brl(totals.wonSum)} sub={`${totals.wonCount} deals`} />
+        <MetricCard title="Perdido (Lost)" value={brl(totals.lostSum)} sub={`${totals.lostCount} deals`} />
       </div>
 
-      <div style={{ marginTop: 12 }}>
+      {/* Board */}
+      <div className="mt-4">
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-          <div style={board}>
+          <div className="flex gap-3 overflow-x-auto pb-3">
             {stages.map((s) => {
               const list = dealsByStage.get(s.id) || [];
-              return (
-                <StageColumn
-                  key={s.id}
-                  stage={s}
-                  deals={list}
-                  sum={sumAmount(list)}
-                />
-              );
+              const sum = sumAmount(list);
+              return <StageColumn key={s.id} stage={s} deals={list} sum={sum} />;
             })}
           </div>
         </DndContext>
       </div>
-    </div>
+    </AppShell>
   );
 }
 
-function TopBar({ tenantId, onLogout }) {
+function MetricCard({ title, value, sub }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-      <div>
-        <h1 style={{ margin: 0 }}>Kanban</h1>
-        <small style={{ color: "#555" }}>
-          Tenant: <b>{tenantId || "(vazio)"}</b>
-        </small>
-      </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <Link to="/dashboard">
-          <button style={{ padding: "10px 12px" }}>Dashboard</button>
-        </Link>
-        <Link to="/leads">
-          <button style={{ padding: "10px 12px" }}>Leads</button>
-        </Link>
-        <button onClick={onLogout} style={{ padding: "10px 12px" }}>
-          Sair
-        </button>
-      </div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="text-xs text-slate-500">{title}</div>
+      <div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="mt-1 text-sm text-slate-500">{sub}</div>
     </div>
   );
 }
@@ -262,24 +246,30 @@ function StageColumn({ stage, deals, sum }) {
   return (
     <div
       ref={setNodeRef}
-      style={{
-        ...column,
-        outline: isOver ? "2px solid #333" : "1px solid #ddd",
-      }}
+      className={[
+        "min-w-[280px] max-w-[320px] rounded-2xl border bg-slate-50 p-3",
+        isOver ? "border-slate-900" : "border-slate-200",
+      ].join(" ")}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 style={{ margin: 0 }}>{stage.name}</h3>
-          <small style={{ color: "#666" }}>
+          <div className="text-sm font-semibold text-slate-900">{stage.name}</div>
+          <div className="mt-1 text-xs text-slate-500">
             {deals.length} deals • {brl(sum)}
-          </small>
+          </div>
         </div>
+        <div className="text-xs text-slate-400">#{stage.order}</div>
       </div>
 
-      <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+      <div className="mt-3 grid gap-3">
         {deals.map((d) => (
           <DealCard key={d.id} deal={d} />
         ))}
+        {deals.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white p-3 text-xs text-slate-500">
+            Arraste deals aqui
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -291,60 +281,35 @@ function DealCard({ deal }) {
   });
 
   const style = {
-    ...card,
     transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.6 : 1,
-    cursor: "grab",
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      <div style={{ fontWeight: "bold" }}>{deal.title}</div>
-      <div style={{ color: "#555", marginTop: 4 }}>{deal.company || "-"}</div>
-      <div style={{ color: "#111", marginTop: 6 }}>
-        {deal.amount == null ? "—" : `R$ ${Number(deal.amount).toLocaleString("pt-BR")}`}
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={[
+        "rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
+        isDragging ? "opacity-60" : "",
+        "cursor-grab active:cursor-grabbing",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm font-semibold text-slate-900">{deal.title}</div>
+        <Badge tone={toneFromDealStatus(deal.status)}>{deal.status}</Badge>
       </div>
-      <small style={{ color: "#777" }}>
+
+      <div className="mt-1 text-sm text-slate-600">{deal.company || "-"}</div>
+
+      <div className="mt-2 text-sm font-semibold text-slate-900">
+        {deal.amount == null ? "—" : brl(deal.amount)}
+      </div>
+
+      <div className="mt-2 text-xs text-slate-500">
         Atualizado: {new Date(deal.updatedAtUtc).toLocaleString("pt-BR")}
-      </small>
+      </div>
     </div>
   );
 }
-
-function sumAmount(list) {
-  return list.reduce((acc, d) => acc + (d.amount == null ? 0 : Number(d.amount)), 0);
-}
-
-function brl(n) {
-  return `R$ ${Number(n || 0).toLocaleString("pt-BR")}`;
-}
-
-const board = {
-  display: "grid",
-  gridTemplateColumns: "repeat(6, minmax(260px, 1fr))",
-  gap: 12,
-  overflowX: "auto",
-  paddingBottom: 8,
-};
-
-const column = {
-  minHeight: 200,
-  background: "#fafafa",
-  borderRadius: 12,
-  padding: 12,
-};
-
-const card = {
-  background: "white",
-  border: "1px solid #e6e6e6",
-  borderRadius: 12,
-  padding: 12,
-  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-};
-
-const miniCard = {
-  border: "1px solid #ddd",
-  borderRadius: 12,
-  padding: 12,
-  background: "white",
-};

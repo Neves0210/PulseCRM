@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import AppShell from "../components/AppShell";
+import LogoutButton from "../components/LogoutButton";
+import Badge from "../components/Badge";
 import { apiFetch, clearToken } from "../lib/api";
 import { useNavigate } from "react-router-dom";
+
+function toneFromStatus(status) {
+  if (status === "Qualified") return "success";
+  if (status === "Lost") return "danger";
+  if (status === "Contacted") return "warning";
+  return "neutral";
+}
 
 export default function Leads() {
   const nav = useNavigate();
@@ -9,7 +19,6 @@ export default function Leads() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // filtros/paginação
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [source, setSource] = useState("");
@@ -18,7 +27,6 @@ export default function Leads() {
 
   const [data, setData] = useState({ total: 0, page: 1, pageSize: 10, items: [] });
 
-  // criar lead
   const [newLead, setNewLead] = useState({
     name: "",
     email: "",
@@ -26,9 +34,6 @@ export default function Leads() {
     status: "New",
     source: "",
   });
-
-  const [editingId, setEditingId] = useState(null);
-  const [editLead, setEditLead] = useState({ name: "", email: "", phone: "", status: "New", source: "" });
 
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || pageSize)));
@@ -59,65 +64,6 @@ export default function Leads() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
-
-  function logout() {
-    clearToken();
-    localStorage.removeItem("pulsecrm_tenant");
-    nav("/login");
-  }
-
-  function startEdit(lead) {
-    setEditingId(lead.id);
-    setEditLead({
-        name: lead.name || "",
-        email: lead.email || "",
-        phone: lead.phone || "",
-        status: lead.status || "New",
-        source: lead.source || "",
-    });
- }
-
- async function saveEdit() {
-   setErr("");
-   if (!editingId) return;
-
-   if (!editLead.name.trim()) {
-       setErr("Nome é obrigatório.");
-       return;
-   }
-
-   try {
-       await apiFetch(`/leads/${editingId}`, {
-       tenantId,
-       method: "PUT",
-       body: JSON.stringify({
-           name: editLead.name.trim(),
-           email: editLead.email.trim() || null,
-           phone: editLead.phone.trim() || null,
-           status: editLead.status || "New",
-           source: editLead.source.trim() || null,
-           ownerUserId: null,
-       }),
-      });
-
-       setEditingId(null);
-       await load();
-   } catch (e) {
-       setErr(String(e.message || e));
-   }
-  }
-
-    async function removeLead(id) {
-    const ok = confirm("Tem certeza que deseja excluir este lead?");
-    if (!ok) return;
-
-   try {
-       await apiFetch(`/leads/${id}`, { tenantId, method: "DELETE" });
-       await load();
-   } catch (e) {
-       setErr(String(e.message || e));
-   }
- }
 
   async function onApplyFilters(e) {
     e.preventDefault();
@@ -156,30 +102,34 @@ export default function Leads() {
     }
   }
 
+  function logout() {
+    clearToken();
+    localStorage.removeItem("pulsecrm_tenant");
+    nav("/login");
+  }
+
   return (
-    <div style={{ fontFamily: "Arial", padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Leads</h1>
-          <small style={{ color: "#555" }}>
-            Tenant: <b>{tenantId || "(vazio)"}</b>
-          </small>
+    <AppShell title="Leads" subtitle={`Tenant: ${tenantId}`} right={<LogoutButton />}>
+      {err ? (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          {err}
         </div>
-        <button onClick={logout} style={{ padding: "10px 12px" }}>Sair</button>
-      </div>
+      ) : null}
 
-      <hr style={{ margin: "16px 0" }} />
-
-      {/* Filtros */}
-      <form onSubmit={onApplyFilters} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 12 }}>
+      {/* filtros */}
+      <form onSubmit={onApplyFilters} className="grid grid-cols-1 gap-3 md:grid-cols-[2fr_1fr_1fr_auto]">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nome, email ou telefone..."
-          style={{ padding: 10 }}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
         />
 
-        <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ padding: 10 }}>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+        >
           <option value="">Status (todos)</option>
           <option value="New">New</option>
           <option value="Contacted">Contacted</option>
@@ -191,43 +141,46 @@ export default function Leads() {
           value={source}
           onChange={(e) => setSource(e.target.value)}
           placeholder="Source (ex: Instagram)"
-          style={{ padding: 10 }}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
         />
 
-        <button style={{ padding: 10 }} disabled={loading}>
+        <button
+          disabled={loading}
+          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+        >
           {loading ? "..." : "Aplicar"}
         </button>
       </form>
 
-      {err ? <pre style={{ color: "crimson", marginTop: 12 }}>{err}</pre> : null}
-
-      {/* Criar lead */}
-      <div style={{ marginTop: 16, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-        <h3 style={{ marginTop: 0 }}>Novo Lead</h3>
-
-        <form onSubmit={onCreateLead} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1.5fr 1fr 1.5fr auto", gap: 10 }}>
+      {/* novo lead */}
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="text-sm font-semibold text-slate-900">Novo Lead</div>
+        <form
+          onSubmit={onCreateLead}
+          className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[2fr_2fr_1.5fr_1fr_1.5fr_auto]"
+        >
           <input
             value={newLead.name}
             onChange={(e) => setNewLead((p) => ({ ...p, name: e.target.value }))}
             placeholder="Nome"
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
           <input
             value={newLead.email}
             onChange={(e) => setNewLead((p) => ({ ...p, email: e.target.value }))}
             placeholder="Email"
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
           <input
             value={newLead.phone}
             onChange={(e) => setNewLead((p) => ({ ...p, phone: e.target.value }))}
             placeholder="Telefone"
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
           <select
             value={newLead.status}
             onChange={(e) => setNewLead((p) => ({ ...p, status: e.target.value }))}
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           >
             <option value="New">New</option>
             <option value="Contacted">Contacted</option>
@@ -238,22 +191,31 @@ export default function Leads() {
             value={newLead.source}
             onChange={(e) => setNewLead((p) => ({ ...p, source: e.target.value }))}
             placeholder="Source"
-            style={{ padding: 10 }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
-          <button style={{ padding: 10 }}>Criar</button>
+          <button className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            Criar
+          </button>
         </form>
       </div>
 
-      {/* Tabela */}
-      <div style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <p style={{ margin: 0 }}>
-            Total: <b>{data.total}</b>
-          </p>
+      {/* tabela */}
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-slate-700">
+            Total: <b className="text-slate-900">{data.total}</b>
+          </div>
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <small>PageSize</small>
-            <select value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }} style={{ padding: 8 }}>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">PageSize</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPage(1);
+                setPageSize(Number(e.target.value));
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+            >
               <option value={5}>5</option>
               <option value={10}>10</option>
               <option value={20}>20</option>
@@ -262,89 +224,75 @@ export default function Leads() {
           </div>
         </div>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
-          <thead>
-            <tr>
-              {["Nome", "Email", "Telefone", "Status", "Source", "Criado em", "Ações"].map((h) => (
-                <th key={h} style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: "10px 8px" }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} style={{ padding: 12 }}>Carregando...</td></tr>
-            ) : data.items.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: 12 }}>Nenhum lead encontrado.</td></tr>
-            ) : (
-              data.items.map((x) => (
-                <tr key={x.id}>
-                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}><b>{x.name}</b></td>
-                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>{x.email || "-"}</td>
-                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>{x.phone || "-"}</td>
-                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>{x.status}</td>
-                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>{x.source || "-"}</td>
-                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>
-                    {new Date(x.createdAtUtc).toLocaleString()}
-                  </td>
-                  <td style={{ padding: "10px 8px", borderBottom: "1px solid #f0f0f0" }}>
-                    <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={() => startEdit(x)} style={{ padding: "6px 8px" }}>Editar</button>
-                        <button onClick={() => removeLead(x.id)} style={{ padding: "6px 8px" }}>Excluir</button>
-                    </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[900px] w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                {["Nome", "Email", "Telefone", "Status", "Source", "Criado em"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-600">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-sm text-slate-500">
+                    Carregando...
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        
-        {editingId ? (
-            <div style={{ marginTop: 16, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-                <h3 style={{ marginTop: 0 }}>Editar Lead</h3>
+              ) : data.items.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-sm text-slate-500">
+                    Nenhum lead encontrado.
+                  </td>
+                </tr>
+              ) : (
+                data.items.map((x) => (
+                  <tr key={x.id} className="border-t border-slate-100">
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">{x.name}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{x.email || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{x.phone || "-"}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <Badge tone={toneFromStatus(x.status)}>{x.status}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{x.source || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">
+                      {new Date(x.createdAtUtc).toLocaleString("pt-BR")}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1.5fr 1fr 1.5fr auto auto", gap: 10 }}>
-                <input value={editLead.name} onChange={(e) => setEditLead(p => ({ ...p, name: e.target.value }))} placeholder="Nome" style={{ padding: 10 }} />
-                <input value={editLead.email} onChange={(e) => setEditLead(p => ({ ...p, email: e.target.value }))} placeholder="Email" style={{ padding: 10 }} />
-                <input value={editLead.phone} onChange={(e) => setEditLead(p => ({ ...p, phone: e.target.value }))} placeholder="Telefone" style={{ padding: 10 }} />
-                <select value={editLead.status} onChange={(e) => setEditLead(p => ({ ...p, status: e.target.value }))} style={{ padding: 10 }}>
-                    <option value="New">New</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Qualified">Qualified</option>
-                    <option value="Lost">Lost</option>
-                </select>
-                <input value={editLead.source} onChange={(e) => setEditLead(p => ({ ...p, source: e.target.value }))} placeholder="Source" style={{ padding: 10 }} />
-
-                <button onClick={saveEdit} style={{ padding: 10 }}>Salvar</button>
-                <button onClick={() => setEditingId(null)} style={{ padding: 10 }}>Cancelar</button>
-                </div>
-            </div>
-        ) : null}
-
-        {/* Paginação */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+        {/* paginação */}
+        <div className="flex items-center justify-between border-t border-slate-200 p-4">
           <button
             disabled={page <= 1 || loading}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            style={{ padding: "8px 10px" }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
             ◀ Anterior
           </button>
 
-          <div>
-            Página <b>{page}</b> de <b>{totalPages}</b>
+          <div className="text-sm text-slate-600">
+            Página <b className="text-slate-900">{page}</b> de{" "}
+            <b className="text-slate-900">{totalPages}</b>
           </div>
 
           <button
             disabled={page >= totalPages || loading}
             onClick={() => setPage((p) => p + 1)}
-            style={{ padding: "8px 10px" }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
             Próxima ▶
           </button>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

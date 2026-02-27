@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch, clearToken } from "../lib/api";
-import { Link, useNavigate } from "react-router-dom";
+import AppShell from "../components/AppShell";
+import LogoutButton from "../components/LogoutButton";
+import { apiFetch } from "../lib/api";
+
+function Card({ title, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="text-xs text-slate-500">{title}</div>
+      <div className="mt-1 text-2xl font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
-  const nav = useNavigate();
   const tenantId = localStorage.getItem("pulsecrm_tenant") || "";
 
   const [loading, setLoading] = useState(false);
@@ -34,36 +43,21 @@ export default function Dashboard() {
     return m;
   }, [stats]);
 
-  function logout() {
-    clearToken();
-    localStorage.removeItem("pulsecrm_tenant");
-    nav("/login");
-  }
-
   return (
-    <div style={{ fontFamily: "Arial", padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Dashboard</h1>
-          <small style={{ color: "#555" }}>
-            Tenant: <b>{tenantId || "(vazio)"}</b>
-          </small>
+    <AppShell title="Dashboard" subtitle={`Tenant: ${tenantId}`} right={<LogoutButton />}>
+      {err ? (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          {err}
         </div>
+      ) : null}
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <Link to="/leads"><button style={{ padding: "10px 12px" }}>Leads</button></Link>
-          <button onClick={logout} style={{ padding: "10px 12px" }}>Sair</button>
-        </div>
-      </div>
-
-      <hr style={{ margin: "16px 0" }} />
-
-      {err ? <pre style={{ color: "crimson" }}>{err}</pre> : null}
-      {loading && !stats ? <p>Carregando...</p> : null}
+      {loading && !stats ? (
+        <div className="text-sm text-slate-500">Carregando...</div>
+      ) : null}
 
       {stats ? (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
             <Card title="Total" value={stats.total} />
             <Card title="New" value={statusMap.New || 0} />
             <Card title="Contacted" value={statusMap.Contacted || 0} />
@@ -71,63 +65,63 @@ export default function Dashboard() {
             <Card title="Lost" value={statusMap.Lost || 0} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 12, marginTop: 12 }}>
-            <div style={panel}>
-              <h3 style={{ marginTop: 0 }}>Últimos Leads</h3>
-              {stats.latest?.length ? (
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {stats.latest.map((x) => (
-                    <li key={x.id} style={{ marginBottom: 6 }}>
-                      <b>{x.name}</b> — {x.status} — {x.source || "-"}{" "}
-                      <small style={{ color: "#666" }}>
-                        ({new Date(x.createdAtUtc).toLocaleString()})
-                      </small>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Nenhum lead ainda.</p>
-              )}
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_0.8fr]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-sm font-semibold text-slate-900">
+                Últimos Leads
+              </div>
+              <div className="mt-3">
+                {stats.latest?.length ? (
+                  <ul className="space-y-2">
+                    {stats.latest.map((x) => (
+                      <li key={x.id} className="rounded-xl bg-slate-50 p-3">
+                        <div className="font-semibold text-slate-900">
+                          {x.name}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {x.status} • {x.source || "-"} •{" "}
+                          {new Date(x.createdAtUtc).toLocaleString("pt-BR")}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-sm text-slate-500">
+                    Nenhum lead ainda.
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div style={panel}>
-              <h3 style={{ marginTop: 0 }}>Top Sources</h3>
-              {stats.topSources?.length ? (
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {stats.topSources.map((s) => (
-                    <li key={s.source}>
-                      <b>{s.source}</b> — {s.count}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Nenhuma source cadastrada.</p>
-              )}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-sm font-semibold text-slate-900">
+                Top Sources
+              </div>
+              <div className="mt-3">
+                {stats.topSources?.length ? (
+                  <ul className="space-y-2">
+                    {stats.topSources.map((s) => (
+                      <li
+                        key={s.source}
+                        className="flex items-center justify-between rounded-xl bg-slate-50 p-3"
+                      >
+                        <div className="font-medium text-slate-900">
+                          {s.source}
+                        </div>
+                        <div className="text-sm text-slate-600">{s.count}</div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-sm text-slate-500">
+                    Nenhuma source cadastrada.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </>
       ) : null}
-    </div>
+    </AppShell>
   );
 }
-
-function Card({ title, value }) {
-  return (
-    <div style={card}>
-      <div style={{ color: "#666", fontSize: 12 }}>{title}</div>
-      <div style={{ fontSize: 26, fontWeight: "bold" }}>{value}</div>
-    </div>
-  );
-}
-
-const card = {
-  border: "1px solid #ddd",
-  borderRadius: 10,
-  padding: 12,
-};
-
-const panel = {
-  border: "1px solid #ddd",
-  borderRadius: 10,
-  padding: 12,
-};

@@ -1,9 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
 import Login from "./pages/Login";
-import Leads from "./pages/Leads";
 import Dashboard from "./pages/Dashboard";
+import Leads from "./pages/Leads";
 import Kanban from "./pages/Kanban";
 
 function Protected({ children }) {
@@ -35,6 +36,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             </Protected>
           }
         />
+
         <Route
           path="/kanban"
           element={
